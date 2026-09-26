@@ -9,6 +9,9 @@ networks and machines you own or have explicit written permission to test. The a
 to `0.0.0.0` so the two sides can talk to each other on your LAN — do **not** expose them
 to the internet or a network you do not own.
 
+> **View only — no license.** This repo is published for reading only. All rights reserved; no
+> permission to copy, modify, or redistribute. See [License](#license).
+
 ---
 
 ## Architecture
@@ -111,7 +114,9 @@ sudo ./venv/bin/python3 app.py -i eth0    # single interface
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+None — **all rights reserved.** This repository is published for viewing only. There is no
+open-source license, so no permission is granted to use, copy, modify, redistribute, or build
+on this code. Please open an issue if you want to contribute.
 
 ## Disclaimer
 

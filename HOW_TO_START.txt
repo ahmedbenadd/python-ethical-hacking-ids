@@ -1,0 +1,75 @@
+# 🛡️ Ethical Hacking Application Suite
+
+Red Team attacker app (Flask + SocketIO) vs Blue Team victim SOC dashboard (Flask). Built for simulating and analyzing real attack scenarios in a controlled environment.
+
+## Architecture
+
+```
+python-ethical-hacking/
+├── attacker_app/          # 🔴 Red Team — Attack Dashboard (Port 5000)
+│   ├── app.py             # Main Flask App
+│   ├── modules/           # Attack modules (Nmap, Brute Force, ARP, etc.)
+│   ├── templates/         # Jinja2 HTML Templates
+│   └── requirements.txt   # Attacker-only Python deps
+├── victim_app/            # 🔵 Blue Team — SOC Dashboard (Port 5001)
+│   ├── app.py
+│   ├── modules/           # IDS, firewall, logging
+│   ├── templates/
+│   └── requirements.txt   # Victim-only Python deps
+└── README.md
+```
+
+Each app is **fully independent** — separate Python requirements, separate setup.
+
+## Quick Start
+
+### 🔴 Attacker App
+
+1.  **Setup Environment**
+    ```bash
+    cd attacker_app
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+2.  **Run Application**
+    ```bash
+    # Run with sudo for Nmap/Scapy permissions
+    sudo ./venv/bin/python3 app.py
+    ```
+    → **http://localhost:5000**
+
+### 🔵 Victim App
+
+1.  **Setup Environment**
+    ```bash
+    cd victim_app
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+2.  **Run Application**
+    ```bash
+    sudo ./venv/bin/python3 app.py
+    ```
+    → **http://localhost:5001**
+
+## Attack Modules
+
+| Module | Page | Description |
+|--------|------|-------------|
+| **Nmap Scanner** | `scanner` | 8 scan types (Quick, Full, Service, OS, Aggressive, Stealth, UDP, Vuln) |
+| **Brute Force** | `bruteforce` | HTTP login brute forcer with password lists |
+| **ARP Spoof** | `arp` | ARP cache poisoning (MITM) |
+
+## Victim SOC Dashboard
+
+- **IDS Engine** — detects SYN floods, brute force, Arp Poisoning
+- **Real-time Alerts** — SocketIO-powered live log feed
+
+## Technologies
+
+- **Backend**: Python, Flask, Flask-SocketIO, Eventlet, Scapy, python-nmap
+- **Frontend**: API-driven Templates + Vanilla JS (No separate frontend build)

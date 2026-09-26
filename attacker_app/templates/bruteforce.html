@@ -1,0 +1,315 @@
+<div id="page-bruteforce" class="app-page" style="display:none;">
+    <div class="page">
+        <div class="top-bar">
+            <h2>🔑 Brute Force</h2>
+            <div class="system-info">
+                <span class="status-badge {{ 'active' if active_attacks.bruteforce else 'idle' }}" id="bf-badge">
+                    {{ 'ATTACKING' if active_attacks.bruteforce else 'IDLE' }}
+                </span>
+            </div>
+        </div>
+
+        <style>
+            /* Scoped styles for Brute Force (similar to Scanner) */
+            .bf-overlay-container {
+                position: relative;
+                overflow: hidden;
+                min-height: 200px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .bf-content {
+                transition: filter 0.3s ease, opacity 0.3s ease;
+            }
+
+            .blur-active {
+                filter: blur(5px) grayscale(80%);
+                pointer-events: none;
+                opacity: 0.5;
+            }
+
+            .bf-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 20;
+                background: rgba(13, 17, 23, 0.7);
+                backdrop-filter: blur(4px);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease;
+            }
+
+            .bf-overlay.visible {
+                opacity: 1;
+                pointer-events: all;
+            }
+
+            /* Reuse spinner from scanner or define here */
+            .cyber-spinner {
+                width: 60px;
+                height: 60px;
+                border: 4px solid rgba(0, 255, 255, 0.1);
+                border-top: 4px solid #00ffff;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            }
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+
+        <div class="page-body" style="display: flex; flex-direction: column;">
+
+            <!-- Main Config & Monitor Section -->
+            <div class="page-grid-2col">
+
+                <!-- Configuration Card -->
+                <div class="glass-card bf-overlay-container">
+                    <div class="card-header red">⚙ Configuration</div>
+
+                    <!-- Content Wrapper for Blur -->
+                    <div class="card-body bf-content" id="bf-form-content">
+                        <div class="mb-10">
+                            <label class="form-label">Target IP (SSH)</label>
+                            <input type="text" class="form-control-dark" id="bf-target" value="127.0.0.1">
+                        </div>
+                        <div class="mb-10">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control-dark" id="bf-username" value="admin">
+                        </div>
+                        <div class="mb-10">
+                            <label class="form-label">Custom Passwords (one per line)</label>
+                            <textarea class="form-control-dark" rows="3" id="bf-passwords"
+                                placeholder="Leave empty for default wordlist"></textarea>
+                        </div>
+                        <button class="btn-hack red w-full" id="bf-start-btn" onclick="startBf()">▶ START
+                            ATTACK</button>
+                    </div>
+
+                    <!-- Overlay -->
+                    <div id="bf-overlay" class="bf-overlay">
+                        <div class="cyber-spinner" style="margin-bottom: 20px;"></div>
+                        <div class="text-cyan"
+                            style="font-size: 1.2rem; font-weight: bold; animation: pulse 2s infinite; margin-bottom: 20px;">
+                            CRACKING PASSWORD...
+                        </div>
+                        <button class="btn-hack red" id="bf-stop-btn" onclick="stopBf()" style="padding: 0 30px;">
+                            ⏹ ABORT ATTACK
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Stats Card -->
+                <div class="glass-card">
+                    <div class="card-header">📊 Live Progress</div>
+                    <div class="card-body">
+                        <div class="stat-cards" style="grid-template-columns: 1fr 1fr 1fr;">
+                            <div class="stat-card">
+                                <div class="stat-value" id="bf-attempts">0</div>
+                                <div class="stat-label">Attempts</div>
+                            </div>
+                            <div class="stat-card red">
+                                <div class="stat-value" id="bf-failed">0</div>
+                                <div class="stat-label">Failed</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value text-green" id="bf-cracked">—</div>
+                                <div class="stat-label">Cracked</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-12">
+                            <label class="form-label">Progress (<span id="bf-pct">0</span>%)</label>
+                            <div class="progress-bar-custom">
+                                <div class="fill" id="bf-progress" style="width: 0%;"></div>
+                            </div>
+                            <small class="text-muted" style="font-size: 0.8rem; display: block; margin-top: 5px;"
+                                id="bf-status">
+                                Waiting to start...
+                            </small>
+                        </div>
+
+                        <!-- Success Banner -->
+                        <div id="bf-banner" style="display: none; margin-top: 15px;">
+                            <div class="cracked-banner">
+                                <div style="font-size: 1.5rem; margin-bottom: 8px;">🔓</div>
+                                <div class="cracked-label">PASSWORD FOUND</div>
+                                <div class="cracked-value" id="bf-cracked-pw"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Console -->
+            <div style="margin-top: 12px; flex: 1; min-height: 0;">
+                <div class="glass-card" style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="card-header">💻 Attack Console</div>
+                    <div class="card-body"
+                        style="padding: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                        <div class="console" id="bf-console" style="flex: 1; border: none; border-radius: 0;">
+                            <span class="console-line success">[*] Brute Force module loaded.</span>
+                            <span class="console-line info">[*] Default wordlist: 40 common passwords.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let bfActive = {{ 'true' if active_attacks.bruteforce else 'false' }};
+
+        function updateBfUI() {
+            const formContent = document.getElementById('bf-form-content');
+            const overlay = document.getElementById('bf-overlay');
+            const badge = document.getElementById('bf-badge');
+
+            // Badge
+            badge.className = 'status-badge ' + (bfActive ? 'active' : 'idle');
+            badge.textContent = bfActive ? 'ATTACKING' : 'IDLE';
+
+            if (bfActive) {
+                // Show Overlay, Blur Form
+                formContent.classList.add('blur-active');
+                overlay.classList.add('visible');
+            } else {
+                // Hide Overlay, Unblur Form
+                formContent.classList.remove('blur-active');
+                overlay.classList.remove('visible');
+            }
+        }
+
+        async function startBf() {
+            const target = document.getElementById('bf-target').value;
+            const username = document.getElementById('bf-username').value;
+            const pwText = document.getElementById('bf-passwords').value.trim();
+            const passwords = pwText ? pwText.split('\n').filter(p => p.trim()) : [];
+
+            document.getElementById('bf-console').innerHTML = ''; // Clear console
+            addConsoleLine('bf-console', '[+] Starting brute force on ' + target + ' as ' + username, 'info');
+            document.getElementById('bf-banner').style.display = 'none';
+
+            // Reset stats UI
+            document.getElementById('bf-attempts').textContent = '0';
+            document.getElementById('bf-failed').textContent = '0';
+            document.getElementById('bf-cracked').textContent = '—';
+            document.getElementById('bf-progress').style.width = '0%';
+            document.getElementById('bf-pct').textContent = '0';
+
+
+            try {
+                // Set active immediately for UI feedback
+                bfActive = true;
+                updateBfUI();
+
+                const res = await fetch('/api/attack/bruteforce', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start', target: target, username: username, passwords: passwords })
+                });
+                const data = await res.json();
+
+                if (data.status === 'ok') {
+                    // Don't log "Brute force started" here if we already logged "Starting..." above via local action
+                    // Or just log it as a confirmation
+                    // addConsoleLine('bf-console', '[+] Attack Initiated via API', 'success'); 
+                } else {
+                    // Reset if failed to start
+                    bfActive = false;
+                    updateBfUI();
+                    addConsoleLine('bf-console', '[!] ' + data.message, 'warning');
+                }
+            } catch (e) {
+                bfActive = false;
+                updateBfUI();
+                addConsoleLine('bf-console', '[-] Connection error: ' + e.message, 'error');
+            }
+        }
+
+        async function stopBf() {
+            try {
+                const res = await fetch('/api/attack/bruteforce', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stop' })
+                });
+                const data = await res.json();
+                bfActive = false;
+                updateBfUI();
+                addConsoleLine('bf-console', '[*] Brute force stopped by user.', 'warning');
+            } catch (e) {
+                addConsoleLine('bf-console', '[-] Error: ' + e.message, 'error');
+            }
+        }
+
+        // Socket Events
+        socket.on('bf_update', function (data) {
+            document.getElementById('bf-attempts').textContent = data.attempts;
+            document.getElementById('bf-failed').textContent = data.attempts - (data.found ? 1 : 0);
+            document.getElementById('bf-cracked').textContent = data.found ? '✓' : '—';
+            document.getElementById('bf-pct').textContent = data.progress;
+            document.getElementById('bf-progress').style.width = data.progress + '%';
+
+            if (data.current_password) {
+                // Only log interesting events or every Nth attempt to avoid console spam if desired
+                // But user wants to "see it work", so logging is good.
+                const icon = data.found ? '!!!' : data.error ? '✗' : '→';
+                const type = data.found ? 'success' : data.error ? 'error' : 'info';
+
+                let msg = `[${icon}] Attempt #${data.attempts}: Checking "${data.current_password}"`;
+                if (data.error) msg += ` (Error: ${data.error})`;
+                if (data.found) msg += ` <-- PASSWORD FOUND!`;
+
+                if (data.retry) {
+                    addConsoleLine('bf-console', `[Running] Network glitch. Retrying in 1s...`, 'warning');
+                } else {
+                    addConsoleLine('bf-console', msg, type);
+                }
+            }
+
+            if (data.found) {
+                bfActive = false;
+                updateBfUI();
+                document.getElementById('bf-status').textContent = '🔓 Cracked: ' + data.cracked_password;
+                document.getElementById('bf-banner').style.display = 'block';
+                document.getElementById('bf-cracked-pw').textContent = data.cracked_password;
+                addConsoleLine('bf-console', '[!!!] 🔓 MATCH FOUND: ' + data.cracked_password, 'success');
+            } else {
+                document.getElementById('bf-status').textContent = bfActive ? 'Testing: ' + (data.current_password || '...') : 'Waiting...';
+            }
+        });
+
+        socket.on('status_update', function (data) {
+            // Sync if stopped from server side (e.g. finished list without success)
+            if (!data.active.bruteforce && bfActive) {
+                bfActive = false;
+                updateBfUI();
+                if (!document.getElementById('bf-banner').style.display || document.getElementById('bf-banner').style.display === 'none') {
+                    addConsoleLine('bf-console', '[*] Attack finished (or stopped). No password found in list.', 'warning');
+                }
+            }
+        });
+
+        // Initialize UI State
+        updateBfUI();
+
+    </script>
+</div>

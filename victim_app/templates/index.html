@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardian IDS — Dashboard</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- JS Dependencies -->
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <div class="app-layout">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="brand">
+                <span class="brand-icon">🛡️</span>
+                <div>
+                    <h1>GUARDIAN</h1>
+                    <span>IDS / IPS SYSTEM</span>
+                </div>
+            </div>
+
+
+
+            <nav class="nav-menu">
+                <button class="nav-item active" onclick="app.switchView('dashboard')">
+                    <span class="icon">📊</span> Dashboard
+                </button>
+                <button class="nav-item" onclick="app.switchView('traffic')">
+                    <span class="icon">📡</span> Live Traffic
+                </button>
+                <button class="nav-item" onclick="app.switchView('alerts')">
+                    <span class="icon">📜</span> Threat Logs
+                </button>
+
+            </nav>
+
+            <div class="system-status">
+                <div class="status-row">
+                    <span>SYSTEM</span>
+                    <span class="status-badge online">ONLINE</span>
+                </div>
+                <div class="status-row">
+                    <span>INTERFACE</span>
+                    <span class="mono">eth0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="content-area">
+
+            <!-- VIEW: DASHBOARD -->
+            <section id="view-dashboard" class="view active">
+                <!-- Top Stats Row -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL PACKETS</div>
+                        <div class="stat-value" id="stat-packets">0</div>
+                    </div>
+                    <div class="stat-card danger">
+                        <div class="stat-label">THREATS DETECTED</div>
+                        <div class="stat-value" id="stat-alerts">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">TRAFFIC RATE</div>
+                        <div class="stat-value" id="stat-rate">0 pps</div>
+                    </div>
+                </div>
+
+                <!-- Dashboard Grid -->
+                <div class="dashboard-grid">
+                    <!-- Chart: Network Traffic -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>NETWORK ACTIVITY (PPS)</h3>
+                        </div>
+                        <div class="panel-body chart-wrapper">
+                            <canvas id="chart-traffic"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart: Protocol Dist -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>PROTOCOL BREAKDOWN</h3>
+                        </div>
+                        <div class="panel-body chart-wrapper">
+                            <canvas id="chart-protocol"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recent Alerts -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>LATEST ALERTS</h3>
+                        </div>
+                        <div class="panel-body scrollable">
+                            <div id="dashboard-alerts" class="alert-feed"></div>
+                        </div>
+                    </div>
+
+                    <!-- Top Talkers -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>TOP SOURCES</h3>
+                        </div>
+                        <div class="panel-body scrollable">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Source IP</th>
+                                        <th>Pkts</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="top-talkers-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: LIVE TRAFFIC -->
+            <section id="view-traffic" class="view">
+                <div class="panel full-height">
+                    <div class="panel-header">
+                        <h3>LIVE NETWORK TRAFFIC</h3>
+                        <div class="live-indicator"><span class="blink">●</span> LIVE</div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filter-bar">
+                        <select id="filter-proto">
+                            <option value="ALL">All Protocols</option>
+                            <option value="TCP">TCP</option>
+                            <option value="UDP">UDP</option>
+                            <option value="ICMP">ICMP</option>
+                            <option value="ARP">ARP</option>
+                        </select>
+                        <input type="text" id="filter-src" placeholder="Source IP/Port...">
+                        <input type="text" id="filter-dst" placeholder="Dest IP/Port...">
+                    </div>
+
+                    <!-- Table -->
+                    <div class="panel-body table-wrapper">
+                        <table class="data-table sticky-header">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100px;">Time</th>
+                                    <th style="width: 180px;">Source</th>
+                                    <th style="width: 180px;">Destination</th>
+                                    <th style="width: 80px;">Proto</th>
+                                    <th>Info</th>
+                                </tr>
+                            </thead>
+                            <tbody id="traffic-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: THREAT LOGS (List) -->
+            <section id="view-alerts" class="view">
+                <div class="panel full-height">
+                    <div class="panel-header">
+                        <h3>THREAT DETECTION LOGS</h3>
+                        <span class="icon">📜</span>
+                    </div>
+                    <div class="panel-body table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>TIMESTAMP</th>
+                                    <th>SEVERITY</th>
+                                    <th>TYPE</th>
+                                    <th>SOURCE</th>
+                                    <th>MESSAGE</th>
+                                </tr>
+                            </thead>
+                            <tbody id="simple-alert-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+
+
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>

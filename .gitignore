@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Packet captures / scan output (never commit real traffic)
+*.pcap
+*.pcapng
+*.cap
+nmap_output/
+*_scan.txt
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+secrets/
+
+# Local runtime state
+*.db
+*.sqlite
+*.sqlite3
+instance/
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+build/
+dist/
+*.egg-info/

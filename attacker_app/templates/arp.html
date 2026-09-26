@@ -1,0 +1,163 @@
+<div id="page-arp" class="app-page" style="display:none;">
+    <div class="page">
+        <div class="top-bar">
+            <h2>🕸️ ARP Spoof</h2>
+            <div class="system-info">
+                <span class="status-badge {{ 'active' if active_attacks.arp else 'idle' }}" id="arp-badge">
+                    {{ 'SPOOFING' if active_attacks.arp else 'IDLE' }}
+                </span>
+            </div>
+        </div>
+
+        <div class="page-body" style="display: flex; flex-direction: column;">
+            <div class="page-grid-2col">
+                <!-- Config -->
+                <div class="glass-card">
+                    <div class="card-header red">⚙ Configuration</div>
+                    <div class="card-body">
+                        <div class="mb-10">
+                            <label class="form-label">Target IP (Victim)</label>
+                            <input type="text" class="form-control-dark" id="arp-target" value="192.168.1.5"
+                                placeholder="192.168.1.5">
+                        </div>
+                        <div class="mb-10">
+                            <label class="form-label">Gateway IP (Router)</label>
+                            <input type="text" class="form-control-dark" id="arp-gateway" value="192.168.1.1"
+                                placeholder="192.168.1.1">
+                        </div>
+                        <div class="mb-10">
+                            <label class="form-label">Interface</label>
+                            <input type="text" class="form-control-dark" id="arp-iface" value="eth0" placeholder="eth0">
+                        </div>
+                        <button class="btn-hack red w-full" id="arp-start-btn" onclick="startArp()">▶ START
+                            SPOOFING</button>
+                        <button class="btn-hack w-full" id="arp-stop-btn" onclick="stopArp()" style="display:none;">⏹
+                            STOP &
+                            RESTORE</button>
+                    </div>
+                </div>
+
+                <!-- Info + Stats -->
+                <div class="glass-card">
+                    <div class="card-header cyan">ℹ How It Works</div>
+                    <div class="card-body">
+                        <div class="how-it-works">
+                            <p><span class="step-num">1.</span> Send fake ARP replies to <span
+                                    class="text-green">victim</span>
+                            </p>
+                            <p><span class="step-num">2.</span> Victim's ARP cache poisoned with attacker MAC</p>
+                            <p><span class="step-num">3.</span> Traffic for <span class="text-yellow">gateway</span>
+                                routed
+                                through attacker</p>
+                            <p><span class="step-num">4.</span> Attacker can <span
+                                    class="text-red">intercept/modify</span>
+                                packets (MITM)</p>
+                        </div>
+                        <div style="margin-top: 12px;">
+                            <div class="stat-cards" style="grid-template-columns: 1fr 1fr;">
+                                <div class="stat-card cyan">
+                                    <div class="stat-value" id="arp-packets">0</div>
+                                    <div class="stat-label">Packets Sent</div>
+                                </div>
+                                <div class="stat-card yellow">
+                                    <div class="stat-value" id="arp-time">00:00</div>
+                                    <div class="stat-label">Duration</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Console -->
+            <div style="margin-top: 12px;">
+                <div class="glass-card">
+                    <div class="card-header">💻 Console</div>
+                    <div class="card-body" style="padding: 8px 12px;">
+                        <div class="console" id="arp-console">
+                            <span class="console-line success">[*] ARP Spoof module loaded.
+                            </span><span class="console-line warning">[!] Requires root and proper network config.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let arpActive = {{ 'true' if active_attacks.arp else 'false' }};
+
+        function updateArpUI() {
+            document.getElementById('arp-start-btn').style.display = arpActive ? 'none' : '';
+            document.getElementById('arp-stop-btn').style.display = arpActive ? '' : 'none';
+            document.getElementById('arp-target').disabled = arpActive;
+            document.getElementById('arp-gateway').disabled = arpActive;
+            document.getElementById('arp-iface').disabled = arpActive;
+            const badge = document.getElementById('arp-badge');
+            badge.className = 'status-badge ' + (arpActive ? 'active' : 'idle');
+            badge.textContent = arpActive ? 'SPOOFING' : 'IDLE';
+        }
+
+        async function startArp() {
+            const targetIp = document.getElementById('arp-target').value;
+            const gatewayIp = document.getElementById('arp-gateway').value;
+            const iface = document.getElementById('arp-iface').value;
+            addConsoleLine('arp-console', '[+] Starting ARP spoof: ' + targetIp + ' ↔ ' + gatewayIp, 'info');
+            try {
+                const res = await fetch('/api/attack/arp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start', target_ip: targetIp, gateway_ip: gatewayIp, interface: iface })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    arpActive = true;
+                    updateArpUI();
+                    addConsoleLine('arp-console', '[+] ' + data.message, 'success');
+                } else {
+                    addConsoleLine('arp-console', '[!] ' + data.message, 'warning');
+                }
+            } catch (e) {
+                addConsoleLine('arp-console', '[-] Connection error: ' + e.message, 'error');
+            }
+        }
+
+        async function stopArp() {
+            try {
+                const res = await fetch('/api/attack/arp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stop' })
+                });
+                const data = await res.json();
+                arpActive = false;
+                updateArpUI();
+                addConsoleLine('arp-console', '[+] ' + data.message, 'success');
+            } catch (e) {
+                addConsoleLine('arp-console', '[-] Error: ' + e.message, 'error');
+            }
+        }
+
+        socket.on('arp_stats', function (data) {
+            document.getElementById('arp-packets').textContent = data.packets_sent;
+            document.getElementById('arp-time').textContent = formatTime(data.elapsed);
+        });
+
+        socket.on('arp_log', function (data) {
+            addConsoleLine('arp-console', data.message, data.type);
+        });
+
+        socket.on('status_update', function (data) {
+            if (!data.active.arp && arpActive) {
+                arpActive = false;
+                updateArpUI();
+            }
+        });
+
+        // Init
+        if (arpActive) startArpStats();
+
+        updateArpUI();
+    </script>
+</div>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Red Team Ops — Operations Center</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        // Initialize Socket.IO globally before any content scripts run
+        const socket = io();
+    </script>
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <h1>☠ Red Team</h1>
+                <div class="subtitle">Operations Center</div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">Command</div>
+                <a href="#" onclick="showPage('page-dashboard', this); return false;" class="nav-item active">
+                    <span class="nav-emoji">📊</span>
+                    <span>Dashboard</span>
+                </a>
+
+                <div class="sidebar-section">Modules</div>
+                <a href="#" onclick="showPage('page-discovery', this); return false;" class="nav-item">
+                    <span class="nav-emoji">📡</span>
+                    <span>Net Discovery</span>
+                    {% if active_attacks.discovery %}<span class="badge-pulse"></span>{% endif %}
+                </a>
+                <a href="#" onclick="showPage('page-scanner', this); return false;" class="nav-item">
+                    <span class="nav-emoji">🔍</span>
+                    <span>Nmap Scanner</span>
+                    {% if active_attacks.scanner %}<span class="badge-pulse"></span>{% endif %}
+                </a>
+
+                <a href="#" onclick="showPage('page-arp', this); return false;" class="nav-item">
+                    <span class="nav-emoji">🕸️</span>
+                    <span>ARP Spoof</span>
+                    {% if active_attacks.arp %}<span class="badge-pulse"></span>{% endif %}
+                </a>
+                <a href="#" onclick="showPage('page-bruteforce', this); return false;" class="nav-item">
+                    <span class="nav-emoji">🔑</span>
+                    <span>Brute Force</span>
+                    {% if active_attacks.bruteforce %}<span class="badge-pulse"></span>{% endif %}
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <span class="status-dot offline" id="conn-dot"></span>
+                <span id="conn-text">Connecting...</span>
+                <br>
+                <small id="clock"></small>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Partials -->
+            {% include 'dashboard.html' %}
+            {% include 'network_discovery.html' %}
+            {% include 'scanner.html' %}
+
+            {% include 'bruteforce.html' %}
+            {% include 'arp.html' %}
+        </main>
+    </div>
+
+    <script>
+        // Tab Switcher Logic
+        function showPage(pageId, linkElement) {
+            // Hide all pages
+            document.querySelectorAll('.app-page').forEach(function (el) {
+                el.style.display = 'none';
+            });
+
+            // Show target page
+            document.getElementById(pageId).style.display = 'block';
+
+            // Update Sidebar Active State
+            document.querySelectorAll('.nav-item').forEach(function (el) {
+                el.classList.remove('active');
+            });
+            if (linkElement) {
+                linkElement.classList.add('active');
+            }
+        }
+
+        // Clock
+        function updateClock() {
+            const el = document.getElementById('clock');
+            if (el) el.textContent = new Date().toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // SocketIO connection
+        // socket is initialized in <head> now
+
+
+        socket.on('connect', function () {
+            document.getElementById('conn-dot').className = 'status-dot online';
+            document.getElementById('conn-text').textContent = 'C2 Online';
+        });
+        socket.on('disconnect', function () {
+            document.getElementById('conn-dot').className = 'status-dot offline';
+            document.getElementById('conn-text').textContent = 'Disconnected';
+        });
+
+        // Helper: add console line (Global)
+        function addConsoleLine(containerId, text, type) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            const line = document.createElement('span');
+            line.className = 'console-line ' + (type || '');
+            line.textContent = text + '\n';
+            el.appendChild(line);
+            el.scrollTop = el.scrollHeight;
+            while (el.children.length > 150) el.removeChild(el.firstChild);
+        }
+    </script>
+</body>
+
+</html>

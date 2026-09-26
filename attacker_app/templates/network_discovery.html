@@ -1,0 +1,236 @@
+<div id="page-discovery" class="app-page" style="display:none;">
+    <div class="page">
+        <div class="top-bar">
+            <h2>📡 Network Discovery</h2>
+            <div class="system-info">
+                <span class="status-badge {{ 'active' if active_attacks.discovery else 'idle' }}" id="disc-badge">
+                    {{ 'SCANNING' if active_attacks.discovery else 'IDLE' }}
+                </span>
+            </div>
+        </div>
+
+        <!-- Page Body -->
+        <div class="page-body">
+
+            <!-- Controls Card -->
+            <div class="glass-card" style="margin-bottom: 20px; padding: 20px;">
+                <div style="display: flex; gap: 20px; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label class="input-label"
+                            style="display: block; color: rgba(0,255,255,0.8); margin-bottom: 8px; font-size: 0.8rem; letter-spacing: 1px;">TARGET
+                            SUBNET</label>
+                        <input type="text" id="subnet-input" class="input-enhanced" value="192.168.1.0/24"
+                            style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px 15px; width: 100%; border-radius: 4px; font-family: monospace;">
+                    </div>
+                    <button class="btn-hack" onclick="toggleDiscoveryScan()" id="btn-start-discovery"
+                        style="height: 42px; padding: 0 30px;">
+                        ▶ START DISCOVERY
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Card -->
+            <div class="glass-card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div class="card-header cyan"
+                    style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px;">
+                    <span>📋 Discovered Hosts</span>
+                    <span class="text-green" id="discovery-host-count">0 Hosts Found</span>
+                </div>
+
+                <div style="flex: 1; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
+                        <thead style="position: sticky; top: 0; background: rgba(13,17,23,0.95); z-index: 10;">
+                            <tr>
+                                <th
+                                    style="padding: 12px 20px; text-align: left; color: rgba(0,255,255,0.8); border-bottom: 1px solid rgba(0,255,255,0.2);">
+                                    IP ADDRESS</th>
+                                <th
+                                    style="padding: 12px 20px; text-align: left; color: rgba(0,255,255,0.8); border-bottom: 1px solid rgba(0,255,255,0.2);">
+                                    MAC ADDRESS</th>
+                                <th
+                                    style="padding: 12px 20px; text-align: left; color: rgba(0,255,255,0.8); border-bottom: 1px solid rgba(0,255,255,0.2);">
+                                    VENDOR</th>
+                                <th
+                                    style="padding: 12px 20px; text-align: left; color: rgba(0,255,255,0.8); border-bottom: 1px solid rgba(0,255,255,0.2);">
+                                    HOSTNAME</th>
+                            </tr>
+                        </thead>
+                        <tbody id="discovery-table-body">
+                            <tr>
+                                <td colspan="4"
+                                    style="text-align: center; padding: 40px; color: #666; font-style: italic;">
+                                    Ready to scan network...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isDiscoveryScanning = {{ 'true' if active_attacks.discovery else 'false' }};
+        let discoveryPollInterval = null;
+
+        function updateDiscoveryUI(scanning) {
+            const btn = document.getElementById('btn-start-discovery');
+            const badge = document.getElementById('disc-badge');
+
+            if (scanning) {
+                // Change to Abort Button
+                btn.innerHTML = '⏹ ABORT';
+                btn.classList.add('red');
+                btn.style.background = 'rgba(255, 0, 0, 0.2)';
+                btn.style.border = '1px solid rgba(255, 0, 0, 0.4)';
+                badge.className = 'status-badge active';
+                badge.textContent = 'SCANNING';
+            } else {
+                // Change back to Start Button
+                btn.innerHTML = '▶ START DISCOVERY';
+                btn.classList.remove('red');
+                btn.style.background = '';
+                btn.style.border = '';
+                badge.className = 'status-badge idle';
+                badge.textContent = 'IDLE';
+            }
+        }
+
+        async function toggleDiscoveryScan() {
+            if (isDiscoveryScanning) {
+                await stopDiscoveryScan();
+            } else {
+                await startDiscoveryScan();
+            }
+        }
+
+        async function startDiscoveryScan() {
+            const subnet = document.getElementById('subnet-input').value;
+
+            isDiscoveryScanning = true;
+            updateDiscoveryUI(true);
+
+            document.getElementById('discovery-table-body').innerHTML = `
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 40px;">
+                        <div class="cyber-spinner" style="margin: 0 auto 20px;"></div>
+                        <div class="text-cyan" style="animation: pulse 1s infinite;">Scanning ${subnet}...</div>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                await fetch('/api/network/discover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subnet: subnet })
+                });
+                startDiscoveryPolling();
+            } catch (e) {
+                console.error(e);
+                isDiscoveryScanning = false;
+                updateDiscoveryUI(false);
+            }
+        }
+
+        async function stopDiscoveryScan() {
+            try {
+                await fetch('/api/network/discover', { method: 'DELETE' });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function startDiscoveryPolling() {
+            if (discoveryPollInterval) clearInterval(discoveryPollInterval);
+            discoveryPollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/network/discover');
+                    const data = await res.json();
+
+                    if (!data.scanning) {
+                        clearInterval(discoveryPollInterval);
+                        isDiscoveryScanning = false;
+                        updateDiscoveryUI(false);
+                    }
+
+                    renderDiscoveryTable(data.hosts);
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 2000);
+        }
+
+        async function loadDiscoveryInitialData() {
+            try {
+                const res = await fetch('/api/network/discover');
+                const data = await res.json();
+
+                // If we have hosts, render them immediately
+                if (data.hosts && data.hosts.length > 0) {
+                    renderDiscoveryTable(data.hosts);
+                }
+
+                // Sync scanning state
+                if (data.scanning) {
+                    isDiscoveryScanning = true;
+                    updateDiscoveryUI(true);
+                    startDiscoveryPolling();
+                }
+            } catch (e) {
+                console.error("Failed to load discovery data", e);
+            }
+        }
+
+        function renderDiscoveryTable(hosts) {
+            const tbody = document.getElementById('discovery-table-body');
+            document.getElementById('discovery-host-count').textContent = hosts.length + ' Hosts Found';
+
+            if (hosts.length === 0 && isDiscoveryScanning) return; // Keep loading header if still scanning
+
+            if (hosts.length === 0 && !isDiscoveryScanning) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 20px; color: #888;">No hosts found.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            hosts.forEach(host => {
+                html += `
+                    <tr class="fade-in">
+                        <td style="padding: 12px 20px; border-bottom: 1px solid rgba(0,255,255,0.1); color: #fff; font-family: monospace;">${host.ip}</td>
+                        <td style="padding: 12px 20px; border-bottom: 1px solid rgba(0,255,255,0.1); color: #aaa; font-family: monospace;">${host.mac || '<span class="text-muted">-</span>'}</td>
+                        <td style="padding: 12px 20px; border-bottom: 1px solid rgba(0,255,255,0.1); color: #0ff;">${host.vendor || '<span class="text-muted">Unknown</span>'}</td>
+                        <td style="padding: 12px 20px; border-bottom: 1px solid rgba(0,255,255,0.1); color: #fff;">${host.hostname || ''}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // Init check
+        loadDiscoveryInitialData();
+    </script>
+
+    <style>
+        /* Reuse spinner from scanner */
+        .cyber-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 255, 255, 0.1);
+            border-top: 3px solid #00ffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</div>

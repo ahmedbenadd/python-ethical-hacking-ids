@@ -1,0 +1,560 @@
+<div id="page-scanner" class="app-page" style="display:none;">
+    <div class="page">
+        <div class="top-bar">
+            <h2>🔍 Nmap Scanner</h2>
+            <div class="system-info">
+                <span class="status-badge {{ 'active' if active_attacks.scanner else 'idle' }}" id="scan-badge">
+                    {{ 'SCANNING' if active_attacks.scanner else 'IDLE' }}
+                </span>
+            </div>
+        </div>
+
+        <style>
+            /* Strict Layout Control */
+            html,
+            body {
+                height: 100%;
+                overflow: hidden !important;
+                /* Forbidden scroll on website */
+            }
+
+            .page {
+                height: 100vh;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .page-body {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                padding-bottom: 20px;
+            }
+
+            /* Table Skeleton & Sticky Header */
+            .table-container {
+                flex: 1;
+                overflow-y: auto;
+                position: relative;
+            }
+
+            .scanner-table thead th {
+                position: sticky;
+                top: 0;
+                background: rgba(13, 17, 23, 0.95);
+                z-index: 10;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            }
+
+            /* Scan Overlay Styles */
+            .scan-config-card {
+                position: relative;
+                overflow: hidden;
+                /* Contains the overlay */
+                min-height: 250px;
+                /* Enforce height to fit overlay content (Radar + Text + Button) */
+                display: flex;
+                flex-direction: column;
+            }
+
+            .scan-content {
+                transition: filter 0.3s ease, opacity 0.3s ease;
+                padding: 20px;
+                flex: 1;
+                display: flex;
+                align-items: center;
+            }
+
+            .blur-active {
+                filter: blur(5px) grayscale(80%);
+                pointer-events: none;
+                opacity: 0.5;
+            }
+
+            .scan-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 20;
+                background: rgba(13, 17, 23, 0.7);
+                backdrop-filter: blur(4px);
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity 0.3s ease;
+            }
+
+            .scan-overlay.visible {
+                opacity: 1;
+                pointer-events: all;
+            }
+
+            /* Enhanced Inputs */
+            .input-label {
+                display: block;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                color: rgba(0, 255, 255, 0.8);
+                margin-bottom: 8px;
+                font-weight: 600;
+            }
+
+            .input-enhanced {
+                background: rgba(0, 0, 0, 0.3);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #fff;
+                padding: 0 15px;
+                height: 44px;
+                /* Fixed robust height */
+                border-radius: 4px;
+                width: 100%;
+                font-family: 'Courier New', monospace;
+                font-size: 0.95rem;
+                transition: border-color 0.2s;
+            }
+
+            .input-enhanced:focus {
+                border-color: rgba(0, 255, 255, 0.6);
+                outline: none;
+                background: rgba(0, 0, 0, 0.5);
+            }
+
+            .btn-scan-action {
+                height: 44px;
+                padding: 0 25px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-weight: bold;
+                letter-spacing: 1px;
+                white-space: nowrap;
+                border-radius: 4px;
+                transition: all 0.2s;
+            }
+
+            /* Loading Spinner */
+            .cyber-spinner {
+                width: 60px;
+                height: 60px;
+                border: 4px solid rgba(0, 255, 255, 0.1);
+                border-top: 4px solid #00ffff;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            }
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
+
+        <div class="page-body">
+
+            <!-- Top: Full Width Scan Config -->
+            <div class="glass-card scan-config-card" style="margin-bottom: 0;">
+                <div class="card-header cyan" style="padding: 12px 20px; font-size: 1rem;">⚙ SCAN OPERATIONS</div>
+
+                <div style="position: relative; flex: 1;">
+
+                    <!-- Normal Form Content -->
+                    <div id="scan-form-content" class="scan-content">
+                        <div style="display: flex; gap: 20px; width: 100%; align-items: flex-end;">
+
+                            <!-- Scan Type -->
+                            <div style="width: 200px; flex-shrink: 0;">
+                                <label class="input-label">Profile</label>
+                                <div style="position: relative;">
+                                    <select class="input-enhanced" id="scan-type"
+                                        style="appearance: none; cursor: pointer;">
+                                        <option value="quick">⚡ Quick Scan</option>
+                                        <option value="full">🌐 Full Port Scan</option>
+                                        <option value="service">📋 Version Detect</option>
+                                        <option value="os">🖥️ OS Detection</option>
+                                        <option value="aggressive">🔥 Aggressive</option>
+                                    </select>
+                                    <div
+                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; opacity: 0.7; font-size: 0.8rem;">
+                                        ▼</div>
+                                </div>
+                            </div>
+
+                            <!-- Target (Flex Grow) -->
+                            <div style="flex: 1;">
+                                <label class="input-label">Target IP / Range</label>
+                                <input type="text" class="input-enhanced" id="scan-target" value="127.0.0.1"
+                                    placeholder="192.168.1.1">
+                            </div>
+
+                            <!-- Ports -->
+                            <div style="width: 150px; flex-shrink: 0;">
+                                <label class="input-label">Ports</label>
+                                <input type="text" class="input-enhanced" id="scan-ports" placeholder="Optional">
+                            </div>
+
+                            <!-- Action Button -->
+                            <div>
+                                <button class="btn-hack btn-scan-action" id="scan-start-btn" onclick="startScan()">
+                                    <span>▶</span> START SCAN
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Overlay (Hidden by default) -->
+                    <div id="scan-overlay" class="scan-overlay" style="gap: 25px;">
+                        <!-- Loading Spinner -->
+                        <div class="cyber-spinner"></div>
+
+                        <div class="text-cyan"
+                            style="font-size: 1.1rem; font-weight: bold; letter-spacing: 2px; animation: pulse 2s infinite; margin: 0;">
+                            SCANNING...
+                        </div>
+
+                        <button class="btn-hack red btn-scan-action" id="scan-stop-btn" onclick="stopScan()"
+                            style="height: 40px; font-size: 0.9rem; padding: 0 25px; margin: 0;">
+                            ⏹ ABORT
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Bottom Section: Results & Console -->
+            <div
+                style="display: grid; grid-template-columns: 3fr 1fr; gap: 12px; margin-top: 12px; flex: 1; min-height: 0;">
+
+                <!-- Left: Results Table -->
+                <div class="glass-card" style="display: flex; flex-direction: column; overflow: hidden;">
+                    <!-- Fixed Header (Clean) -->
+                    <div class="card-header cyan"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>📋 Scan Findings</span>
+                        <span class="text-green" style="font-size: 0.9rem;">
+                            OPEN PORTS: <b id="res-total-ports" style="font-size: 1.1rem; margin-left: 5px;">0</b>
+                        </span>
+                    </div>
+
+                    <!-- Host Info Holder (Optimized for Single Host) -->
+                    <div id="scan-host-info"
+                        style="padding: 15px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); display: none; align-items: center; gap: 15px;">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <!-- Table Container with Scroll -->
+                    <div class="table-container">
+                        <table class="scanner-table"
+                            style="width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed;">
+                            <thead>
+                                <tr>
+                                    <th
+                                        style="width: 15%; padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,255,65,0.2); white-space: nowrap;">
+                                        PORT</th>
+                                    <th
+                                        style="width: 15%; padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,255,65,0.2); white-space: nowrap;">
+                                        STATE</th>
+                                    <th
+                                        style="width: 25%; padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,255,65,0.2); white-space: nowrap;">
+                                        SERVICE</th>
+                                    <th
+                                        style="width: 45%; padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,255,65,0.2); white-space: nowrap;">
+                                        VERSION</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scan-table-body">
+                                <!-- Skeleton Rows or Data -->
+                                <tr>
+                                    <td colspan="4" class="text-muted"
+                                        style="text-align: center; padding: 20px; opacity: 0.5;">
+                                        Waiting for scan data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right: Console -->
+                <div style="height: 100%; display: flex; flex-direction: column;">
+                    <div class="glass-card" style="height: 100%; display: flex; flex-direction: column;">
+                        <div class="card-header">💻 Console</div>
+                        <div class="card-body"
+                            style="padding: 0; display: flex; flex-direction: column; overflow: hidden;">
+                            <div class="console" id="scan-console"
+                                style="flex: 1; max-height: none; border: none; border-radius: 0;">
+                                <span class="console-line success">[*] Nmap Scanner module loaded.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+        let scanActive = {{ 'true' if active_attacks.scanner else 'false' }};
+        let scanHosts = [];
+
+        function updateScanUI() {
+            const formContent = document.getElementById('scan-form-content');
+            const overlay = document.getElementById('scan-overlay');
+            const badge = document.getElementById('scan-badge');
+
+            // Badge text
+            badge.className = 'status-badge ' + (scanActive ? 'active' : 'idle');
+            badge.innerHTML = scanActive ? 'SCANNING' : 'IDLE';
+
+            if (scanActive) {
+                // Activate Blur & Overlay
+                formContent.classList.add('blur-active');
+                overlay.classList.add('visible');
+            } else {
+                // Deactivate Blur & Overlay
+                formContent.classList.remove('blur-active');
+                overlay.classList.remove('visible');
+            }
+        }
+
+        function getStateColor(state) {
+            const colors = { open: 'text-green', closed: 'text-red', filtered: 'text-yellow' };
+            return colors[state] || 'text-muted';
+        }
+
+        function renderResults() {
+            // Update Stats
+            let totalPorts = 0;
+            let hostsUp = scanHosts.length;
+            scanHosts.forEach(h => {
+                if (h.ports) totalPorts += h.ports.filter(p => p.state === 'open').length;
+            });
+
+            document.getElementById('res-total-ports').textContent = totalPorts;
+
+            const tbody = document.getElementById('scan-table-body');
+            const hostInfoDiv = document.getElementById('scan-host-info');
+
+            if (scanHosts.length === 0) {
+                hostInfoDiv.style.display = 'none';
+                tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-muted" style="text-align: center; padding: 20px; opacity: 0.5;">
+                        ${scanActive ? 'Scanning in progress...' : 'Waiting for scan data...'}
+                    </td>
+                </tr>`;
+                return;
+            }
+
+            // --- Single Host Optimization ---
+            const host = scanHosts[0];
+            hostInfoDiv.style.display = 'flex';
+
+            // 1. Determine OS Info & Icon
+            let mainIcon = '🖥️'; // Default
+            let osName = 'Unknown OS';
+            let osAccuracy = 0;
+
+            if (host.os_matches && host.os_matches.length > 0) {
+                const os = host.os_matches[0];
+                if (os.name) {
+                    osName = os.name;
+                    osAccuracy = os.accuracy;
+                    // Update Icon based on OS
+                    const nameLower = os.name.toLowerCase();
+                    if (nameLower.includes('linux')) mainIcon = '🐧';
+                    else if (nameLower.includes('windows')) mainIcon = '🪟';
+                    else if (nameLower.includes('apple') || nameLower.includes('mac')) mainIcon = '🍎';
+                    else if (nameLower.includes('android')) mainIcon = '🤖';
+                    else if (nameLower.includes('freebsd') || nameLower.includes('bsd')) mainIcon = '😈';
+                }
+            }
+
+            // 2. Prepare Display Elements
+            const showHostname = (host.hostname && host.hostname !== host.ip);
+
+            // Render Host Info Header
+            hostInfoDiv.innerHTML = `
+            <div style="font-size: 2.5rem; filter: drop-shadow(0 0 5px rgba(0,255,255,0.3)); margin-right: 15px;">${mainIcon}</div>
+            <div style="display: flex; flex-direction: column; justify-content: center;">
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                    <span class="text-cyan" style="font-weight: bold; font-family: monospace; font-size: 1.4rem;">${host.ip}</span>
+                    ${showHostname ? `<span class="text-muted" style="font-size: 0.9rem;">${host.hostname}</span>` : ''}
+                </div>
+                ${osName !== 'Unknown OS' ? `
+                <div style="font-size: 0.9rem; color: #aaa; display: flex; align-items: center; gap: 8px;">
+                    <span>${osName}</span>
+                    <span style="font-size: 0.75rem; color: #666; border: 1px solid #444; padding: 1px 4px; border-radius: 4px;">${osAccuracy}%</span>
+                </div>` : '<div style="font-size: 0.9rem; color: #666; font-style: italic;">OS detection pending or failed</div>'}
+            </div>
+        `;
+
+            // Render Table Rows (Ports Only)
+            let html = '';
+            scanHosts.forEach(function (h) {
+                if (h.ports && h.ports.length > 0) {
+                    const openPorts = h.ports.filter(p => p.state === 'open');
+                    if (openPorts.length > 0) {
+                        openPorts.forEach(p => {
+                            html += `
+                        <tr class="fade-in">
+                            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05);" class="text-cyan">${p.port}/${p.protocol || 'tcp'}</td>
+                            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05);" class="text-green"><span style="background: rgba(0,255,65,0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(0,255,65,0.2); font-size: 0.8rem;">OPEN</span></td>
+                            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${p.service || 'unknown'}</td>
+                            <td style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; font-size: 0.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="text-muted" title="${p.product || ''} ${p.version || ''}">${p.product || ''} ${p.version || ''}</td>
+                        </tr>`;
+                        });
+                    } else {
+                        html += `
+                        <tr>
+                            <td colspan="4" class="text-muted" style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); font-style: italic; text-align: center;">
+                                No open ports found on this host.
+                            </td>
+                        </tr>`;
+                    }
+                } else {
+                    html += `
+                        <tr>
+                            <td colspan="4" class="text-muted" style="padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); font-style: italic; text-align: center;">
+                                Scanned, but no port information available.
+                            </td>
+                        </tr>`;
+                }
+            });
+            tbody.innerHTML = html;
+        }
+
+        async function startScan() {
+            if (scanActive) return;
+            const scanType = document.getElementById('scan-type').value;
+            const target = document.getElementById('scan-target').value;
+            const ports = document.getElementById('scan-ports').value;
+            scanActive = true;
+            updateScanUI();
+            scanHosts = [];
+            seenHosts.clear();
+            seenPorts.clear();
+            document.getElementById('scan-console').innerHTML = ''; // Clear console text
+            renderResults();
+
+            addConsoleLine('scan-console', '[+] Starting ' + scanType + ' scan on ' + target, 'info');
+            try {
+                const res = await fetch('/api/attack/scanner', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'start', scan_type: scanType, target: target, ports: ports })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    addConsoleLine('scan-console', '[+] ' + data.message, 'success');
+                } else {
+                    scanActive = false;
+                    updateScanUI();
+                    addConsoleLine('scan-console', '[!] ' + data.message, 'warning');
+                }
+            } catch (e) {
+                scanActive = false;
+                updateScanUI();
+                addConsoleLine('scan-console', '[-] Connection error: ' + e.message, 'error');
+            }
+        }
+
+        async function stopScan() {
+            try {
+                const res = await fetch('/api/attack/scanner', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stop' })
+                });
+                const data = await res.json();
+                scanActive = false;
+                updateScanUI();
+                addConsoleLine('scan-console', '[*] ' + data.message, 'warning');
+            } catch (e) {
+                addConsoleLine('scan-console', '[-] Error: ' + e.message, 'error');
+            }
+        }
+
+
+
+        // State tracking for console logs
+        let seenHosts = new Set();
+        let seenPorts = new Set();
+
+        socket.on('scanner_results', function (data) {
+            const newHosts = (data.results && data.results.hosts) ? data.results.hosts : [];
+
+            // Check for new findings
+            newHosts.forEach(host => {
+                if (!seenHosts.has(host.ip)) {
+                    seenHosts.add(host.ip);
+                    addConsoleLine('scan-console', `[+] Discovered host: ${host.ip} (${host.hostname || 'unknown'})`, 'success');
+                }
+
+                if (host.ports) {
+                    host.ports.forEach(p => {
+                        const key = `${host.ip}:${p.port}`;
+                        if (p.state === 'open' && !seenPorts.has(key)) {
+                            seenPorts.add(key);
+                            addConsoleLine('scan-console', `[+] Open Port ${p.port}/${p.protocol} on ${host.ip} (${p.service})`, 'info');
+                        }
+                    });
+                }
+            });
+
+            scanHosts = newHosts;
+            renderResults();
+
+            if (data.phase === 'complete' || data.phase === 'error' || data.phase === 'cancelled') {
+                scanActive = false;
+                updateScanUI();
+                const stateEl = document.getElementById('scan-state');
+                if (stateEl) stateEl.textContent = data.phase === 'complete' ? 'DONE' : data.phase.toUpperCase();
+
+                const msg = data.message || `Scan finished — ${scanHosts.length} hosts found`;
+                const type = data.phase === 'error' ? 'error' : 'success';
+
+                // Visual separator for completion
+                addConsoleLine('scan-console', '----------------------------------------', 'info');
+                addConsoleLine('scan-console', `[*] ${msg}`, type);
+                if (data.phase === 'complete') {
+                    addConsoleLine('scan-console', '[=] SCAN COMPLETED SUCCESSFULLY', 'success');
+                }
+
+                // Reset granular tracking for next scan if needed, 
+                // or keep it if we want to avoid re-logging same things if scan restarts?
+                // Usually valid to clear on start, but here we just leave it until next startScan clears it.
+            }
+        });
+
+        socket.on('status_update', function (data) {
+            if (!data.active.scanner && scanActive) {
+                scanActive = false;
+                updateScanUI();
+            }
+        });
+
+        updateScanUI();
+
+        // Load initial data if running
+        // Load initial data if running
+        if (scanActive) {
+            // No polling needed for socketio
+        }
+    </script>
+</div>
